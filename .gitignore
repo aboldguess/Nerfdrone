@@ -1,0 +1,20 @@
+# Mini README: Git ignore rules tailored for Nerfdrone.
+# Ignores build artefacts, virtual environments, and local data.
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.env
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+artifacts/
+data/
+.DS_Store
+*.log
+coverage/
+pytest_cache/
