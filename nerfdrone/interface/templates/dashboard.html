@@ -1,0 +1,161 @@
+{# Mini README: Dashboard template for Nerfdrone control centre.
+   Provides a clear landing experience with quick instructions and
+   interactive components for route planning, ingestion, and analysis.
+   The template now includes dual map providers, survey comparisons,
+   and annotation utilities to guide operators through end-to-end
+   mission review without leaving the interface.
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nerfdrone Control Centre</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+e2XkPC1V1jBJOCa/MEGLjm+rXhN3kLBXjg5eQqr8RP4eAbOeXtfLOcAfeUeawuO/HEd1DEuDfSUdifYEYdg==" crossorigin="">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" integrity="sha512-cGrz7W82dManIeZDV4SSQSSHqzTeWY5Avzkdxl3pNGdisz8Iky3Uczdlz7YT1DoP70uQgmO6K1JrVN6aCMGNKg==" crossorigin="">
+    {% if google_maps_key %}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&libraries=drawing" defer></script>
+    {% endif %}
+</head>
+<body>
+<nav class="navbar">
+    <div class="brand">Nerfdrone</div>
+    <div class="nav-actions">
+        <button id="profile-button" class="profile-button" aria-haspopup="true" aria-expanded="false">👤</button>
+        <div class="profile-menu" id="profile-menu">
+            <a href="#">Manage Profiles</a>
+            <a href="#">Learning Zone</a>
+            <a href="#">My Details</a>
+            <a href="#">Subscription Details</a>
+            <a href="#">Manage Users</a>
+            <a href="#" class="sign-out">Sign out</a>
+        </div>
+    </div>
+</nav>
+<main class="container">
+    <section class="hero">
+        <h1>Plan missions and build intelligent 3D reconstructions.</h1>
+        <p>Follow the guided workflow below. Each panel explains exactly what to do so operators can plan, capture, and review surveys confidently.</p>
+    </section>
+
+    <section class="panel">
+        <h2>1. Choose a drone provider</h2>
+        <p>Select your drone platform. Additional providers can be added later without modifying this page.</p>
+        <select id="provider-select">
+            {% for provider in providers %}
+            <option value="{{ provider }}">{{ provider|capitalize }}</option>
+            {% endfor %}
+        </select>
+        <p class="hint">Current providers are mocked so you can explore the workflow without hardware.</p>
+    </section>
+
+    <section class="panel">
+        <h2>2. Draw your capture area on the map</h2>
+        <p>Use the toolbar to sketch the survey boundary. Switch between OpenStreetMap and Google basemaps to match operator preference.</p>
+        <div class="map-toggle">
+            <label><input type="radio" name="map-provider" value="osm" checked> OpenStreetMap</label>
+            <label><input type="radio" name="map-provider" value="google"> Google Maps</label>
+            {% if not google_maps_key %}
+            <span class="hint">Add a Google Maps API key in the settings file to enable the Google layer.</span>
+            {% endif %}
+        </div>
+        <div id="map-container">
+            <div id="leaflet-map" class="map-view" aria-label="OpenStreetMap survey planner"></div>
+            <div id="google-map" class="map-view hidden" aria-label="Google Maps survey planner"></div>
+        </div>
+        <p class="hint">Once your polygon is ready, click “Generate Route” below. Coordinates are captured automatically.</p>
+        <form id="route-form">
+            <div class="form-grid">
+                <label>Latitude min<input type="number" step="0.0001" name="lat_min" value="51.5000" required></label>
+                <label>Longitude min<input type="number" step="0.0001" name="lon_min" value="-0.1300" required></label>
+                <label>Latitude max<input type="number" step="0.0001" name="lat_max" value="51.5010" required></label>
+                <label>Longitude max<input type="number" step="0.0001" name="lon_max" value="-0.1290" required></label>
+            </div>
+            <input type="hidden" name="area_geojson" id="area-geojson">
+            <button type="submit">Generate Route</button>
+        </form>
+        <pre id="route-output" class="output">Draw a polygon and generate a preview route.</pre>
+    </section>
+
+    <section class="panel">
+        <h2>3. Upload footage for testing</h2>
+        <p>Test the ingestion pipeline with mobile footage, archived videos, or live streams.</p>
+        <form id="upload-form" enctype="multipart/form-data">
+            <label>Footage source
+                <select name="source" required>
+                    <option value="mobile_upload">Mobile phone camera</option>
+                    <option value="file_upload">Existing video file</option>
+                    <option value="live_stream">Live stream (simulated)</option>
+                </select>
+            </label>
+            <label>Select video file<input type="file" name="video" accept="video/*" required></label>
+            <button type="submit">Ingest Footage</button>
+        </form>
+        <pre id="upload-output" class="output">Upload status will be displayed here.</pre>
+    </section>
+
+    <section class="panel">
+        <h2>4. Review automatic classifications</h2>
+        <p>The classifier currently supports: {{ supported_labels|join(', ') }}. Click the button to run a demo.</p>
+        <button id="classify-button">Run demo classification</button>
+        <pre id="classify-output" class="output">Classification results show up here.</pre>
+    </section>
+
+    <section class="panel">
+        <h2>5. Inspect survey history</h2>
+        <p>Pick a survey day to overlay its capture area, browse the point cloud export, and review detected assets.</p>
+        <div class="survey-layout">
+            <div class="survey-list">
+                <ul id="survey-days"></ul>
+            </div>
+            <div class="survey-details">
+                <h3>Survey Details</h3>
+                <p id="survey-summary">Select a survey to see its metadata and quick links.</p>
+                <div id="point-cloud-link"></div>
+                <div id="asset-table"></div>
+            </div>
+        </div>
+        <pre id="survey-debug" class="output">Survey overlays and notes will appear here.</pre>
+    </section>
+
+    <section class="panel">
+        <h2>6. Compare captures and annotate assets</h2>
+        <p>Measure change over time by choosing two survey dates. Optionally focus on a specific asset. Add annotations directly from this panel.</p>
+        <form id="comparison-form" class="form-grid">
+            <label>Base capture
+                <select name="base_capture" id="base-capture-select"></select>
+            </label>
+            <label>Target capture
+                <select name="target_capture" id="target-capture-select"></select>
+            </label>
+            <label>Focus asset (optional)
+                <input type="text" name="focus_asset" placeholder="asset identifier">
+            </label>
+            <button type="submit">Compare Surveys</button>
+        </form>
+        <pre id="comparison-output" class="output">Comparison narrative appears here.</pre>
+        <form id="annotation-form" class="form-grid">
+            <label>Capture ID<input type="text" name="capture_id" placeholder="central_river_2024_05_22" required></label>
+            <label>Asset ID<input type="text" name="asset_id" placeholder="bridge_east" required></label>
+            <label>Note<input type="text" name="note" placeholder="Describe the observation" required></label>
+            <button type="submit">Record Annotation</button>
+        </form>
+        <pre id="annotation-output" class="output">Annotation results appear here.</pre>
+    </section>
+
+    <section class="panel">
+        <h2>Need more?</h2>
+        <ul>
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+        <p>Future modules can be dropped into this dashboard without redesign thanks to the pluggable architecture.</p>
+    </section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-nmnw18d1GwaGb0s5momkGLumZ5qX6Ch12eDregO/flMHDL/95B2S/bR5E2wE8p8nXl16rYPDhmPEw24kTx5cAA==" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js" integrity="sha512-VOPB6jcikacrTP2PzefDs2fzGEylh4G6dkprdFMn/hTyBC0bY4Z1cdqUPVHtV6nRvWmvMRGsiE9zMDFMvx6bBA==" crossorigin=""></script>
+<script src="/static/js/dashboard.js" defer></script>
+</body>
+</html>
