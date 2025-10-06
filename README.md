@@ -126,10 +126,23 @@ tests/                   # Pytest suite
 
 ## Setup scripts
 
-- `scripts/setup_environment.sh` – bootstrap virtual environment and install dependencies.
-- `scripts/setup_environment.ps1` – Windows equivalent for PowerShell.
+- `scripts/setup_environment.sh` – validates prerequisites, bootstraps a virtual environment, and installs dependencies on Linux/macOS/Raspberry Pi.
+- `scripts/setup_environment.ps1` – Windows PowerShell equivalent with identical safety checks.
 
-Run them with `bash scripts/setup_environment.sh` or `pwsh -File scripts/setup_environment.ps1`.
+Example usage:
+
+```bash
+# Linux / macOS / Raspberry Pi
+EXTRAS=nerf bash scripts/setup_environment.sh --python python3.11 --venv .venv
+```
+
+```powershell
+# Windows PowerShell
+pwsh -File scripts/setup_environment.ps1 -Python python.exe -VenvDir .venv -Extras nerf
+```
+
+Both scripts ensure Python ≥ 3.10 is available, reuse existing virtual environments when present,
+and print clear activation plus launch instructions.
 
 ## Security and logging
 
