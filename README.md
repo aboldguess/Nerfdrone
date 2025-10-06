@@ -56,6 +56,11 @@ To enable NeRF training with nerfstudio, install the optional extras:
 pip install -e .[nerf]
 ```
 
+> **Important:** The `nerf` extra pulls in `open3d`, which currently provides
+> prebuilt wheels only for Python 3.12 and earlier. Use Python 3.12 when
+> installing the extra (our setup scripts will warn you automatically) or skip
+> the extra on newer interpreters to avoid pip dependency conflicts.
+
 ### 4. Configure environment (optional)
 
 Copy `.env.example` to `.env` and adjust values if you want to override defaults such as
