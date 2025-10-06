@@ -24,7 +24,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-nerf = ["nerfstudio>=0.3.4"]
+# The optional "nerf" extra intentionally pins both nerfstudio and open3d. Newer
+# nerfstudio releases require open3d>=0.16.0, but open3d only publishes wheels
+# up to Python 3.12 at the time of writing. The marker guards against pip trying
+# to resolve the dependency on unsupported interpreters where it would fail with
+# confusing conflicts.
+nerf = [
+    "nerfstudio>=1.1.5",
+    "open3d>=0.19.0; python_version < '3.13'",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -113,6 +113,14 @@ log "INFO" "Upgrading pip inside the virtual environment"
 
 # Normalise extras to remove whitespace so pip receives a clean target string.
 extras_clean=${extras_raw// /}
+extras_lower=$(printf '%s' "$extras_clean" | tr '[:upper:]' '[:lower:]')
+if [[ ",$extras_lower," == *",nerf,"* ]]; then
+  py_major=$("$python_cmd" -c 'import sys; print(sys.version_info[0])')
+  py_minor=$("$python_cmd" -c 'import sys; print(sys.version_info[1])')
+  if (( py_major > 3 || (py_major == 3 && py_minor >= 13) )); then
+    fatal "The 'nerf' extra requires Python 3.12 or lower because open3d only publishes wheels up to that version. Re-run with --python pointing to Python 3.12 or omit the extra."
+  fi
+fi
 install_target="."
 if [[ -n "$extras_clean" ]]; then
   install_target=".[${extras_clean}]"

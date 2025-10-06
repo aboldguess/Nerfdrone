@@ -85,6 +85,20 @@ try {
         if ($item) { $extrasClean += $item.Trim() }
     }
 
+    $extrasLower = @()
+    foreach ($item in $extrasClean) {
+        if ($item) { $extrasLower += $item.ToLowerInvariant() }
+    }
+
+    if ($extrasLower -contains 'nerf') {
+        $versionParts = $pythonVersion.Split('.')
+        $pyMajor = [int]$versionParts[0]
+        $pyMinor = if ($versionParts.Count -gt 1) { [int]$versionParts[1] } else { 0 }
+        if (($pyMajor -gt 3) -or ($pyMajor -eq 3 -and $pyMinor -ge 13)) {
+            throw "The 'nerf' extra requires Python 3.12 or lower because open3d currently publishes wheels up to that interpreter version. Re-run with -Python targeting Python 3.12 or omit the extra."
+        }
+    }
+
     $installTarget = '.'
     if ($extrasClean.Count -gt 0) {
         $extrasArgument = $extrasClean -join ','
