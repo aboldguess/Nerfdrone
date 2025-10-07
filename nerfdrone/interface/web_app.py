@@ -3,14 +3,19 @@
 Structure:
     * create_application - application factory wiring routes and templates.
     * Dashboard state - in-memory mock used to demonstrate interactions.
+    * Finance ledger - lightweight helper to simulate budgeting workflows.
 
 The interface presents instructions, allows selection of drone providers,
-initiates demo route planning, and accepts video uploads for ingestion.
-It prioritises clarity for users while remaining modular for expansion.
+initiates demo route planning, accepts video uploads for ingestion, and now
+exposes a budgeting utility so recurring income or expenses can be duplicated
+quickly. It prioritises clarity for users while remaining modular for
+expansion.
 """
 
 from __future__ import annotations
 
+import json
+from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -22,6 +27,7 @@ from fastapi.templating import Jinja2Templates
 from ..classification import SceneClassifier
 from ..drone_control import REGISTRY
 from ..drone_control.providers import DJIProvider  # noqa: F401  # ensure registration
+from ..finance import FinanceLedger
 from ..ingestion import IngestionSource, VideoIngestor
 from ..logging_utils import get_logger
 from ..route_planning import RoutePlanner
@@ -45,6 +51,7 @@ def create_application() -> FastAPI:
     ingestor = VideoIngestor()
     provider_registry = REGISTRY
     survey_manager = SurveyManager()
+    finance_ledger = FinanceLedger()
     settings = get_settings()
 
     dashboard_state: Dict[str, List[str]] = {
@@ -212,5 +219,70 @@ def create_application() -> FastAPI:
                 "note": note,
             }
         )
+
+    @app.get("/finance/transactions")
+    async def finance_transactions() -> JSONResponse:
+        """Return grouped income and expense data for the UI tables."""
+
+        snapshot = finance_ledger.export_snapshot()
+        LOGGER.debug(
+            "Returning %s income and %s expense entries",
+            len(snapshot["income"]),
+            len(snapshot["expenses"]),
+        )
+        return JSONResponse(snapshot)
+
+    @app.post("/finance/duplicate")
+    async def finance_duplicate(
+        source_transaction_id: str = Form(...),
+        description: Optional[str] = Form(None),
+        category: Optional[str] = Form(None),
+        amount: Optional[str] = Form(None),
+        occurred_on: Optional[str] = Form(None),
+        transaction_type: Optional[str] = Form(None),
+        metadata: Optional[str] = Form(None),
+    ) -> JSONResponse:
+        """Duplicate a transaction, applying provided overrides."""
+
+        overrides: Dict[str, object] = {}
+        if description:
+            overrides["description"] = description
+        if category:
+            overrides["category"] = category
+        if amount not in (None, ""):
+            try:
+                overrides["amount"] = float(amount)
+            except ValueError as error:  # pragma: no cover - defensive path
+                raise HTTPException(status_code=400, detail="Amount must be numeric") from error
+        if occurred_on:
+            try:
+                overrides["occurred_on"] = date.fromisoformat(occurred_on)
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail="Date must be ISO formatted (YYYY-MM-DD)") from error
+        if transaction_type:
+            overrides["transaction_type"] = transaction_type
+        if metadata:
+            try:
+                metadata_payload = json.loads(metadata)
+            except json.JSONDecodeError as error:
+                raise HTTPException(status_code=400, detail="Metadata must be valid JSON") from error
+            if not isinstance(metadata_payload, dict):
+                raise HTTPException(status_code=400, detail="Metadata JSON must describe an object")
+            overrides["metadata"] = metadata_payload
+
+        try:
+            duplicated = finance_ledger.duplicate_transaction(
+                source_transaction_id, overrides=overrides or None
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+        LOGGER.info("Finance duplicate created: %s", duplicated.transaction_id)
+        return JSONResponse({
+            "transaction": duplicated.as_dict(),
+            "snapshot": finance_ledger.export_snapshot(),
+        })
 
     return app

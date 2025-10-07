@@ -119,7 +119,7 @@ label {
     font-weight: 600;
 }
 
-input, select, button {
+input, select, button, textarea {
     width: 100%;
     padding: 0.75rem;
     margin-top: 0.35rem;
@@ -141,6 +141,17 @@ button {
 button:hover {
     transform: translateY(-1px);
     box-shadow: 0 10px 25px rgba(56, 189, 248, 0.3);
+}
+
+.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.secondary:hover {
+    box-shadow: none;
+    background: rgba(148, 163, 184, 0.12);
 }
 
 .output {
@@ -225,6 +236,61 @@ button:hover {
 
 .survey-details a:hover {
     text-decoration: underline;
+}
+
+.finance-layout {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.finance-columns {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.finance-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.finance-table th,
+.finance-table td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.finance-table tbody tr.selected {
+    background: rgba(56, 189, 248, 0.18);
+}
+
+.finance-table button {
+    width: auto;
+    padding: 0.4rem 0.9rem;
+}
+
+.finance-form-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.finance-form-grid label {
+    margin-bottom: 0.2rem;
+}
+
+.finance-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.finance-hint {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    color: rgba(226, 232, 240, 0.8);
 }
 
 @media (max-width: 768px) {
