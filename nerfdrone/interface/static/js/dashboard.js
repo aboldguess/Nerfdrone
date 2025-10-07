@@ -28,6 +28,10 @@ const state = {
     overlay: null,
   },
   surveyCaptures: [],
+  finance: {
+    snapshot: { income: [], expenses: [] },
+    selectedId: null,
+  },
 };
 
 const logPanel = document.getElementById('survey-debug');
@@ -35,6 +39,10 @@ const logPanel = document.getElementById('survey-debug');
 function appendLog(message) {
   const timestamp = new Date().toISOString();
   logPanel.textContent = `${timestamp}: ${message}\n${logPanel.textContent}`;
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(value);
 }
 
 async function safeJsonFetch(url, options = {}) {
@@ -378,6 +386,15 @@ function setupEventListeners() {
   document.querySelectorAll('input[name="map-provider"]').forEach((input) => {
     input.addEventListener('change', (event) => toggleMap(event.target.value));
   });
+
+  const financeForm = document.getElementById('finance-duplicate-form');
+  if (financeForm) {
+    financeForm.addEventListener('submit', submitFinanceDuplicate);
+  }
+  const financeClear = document.getElementById('finance-clear-selection');
+  if (financeClear) {
+    financeClear.addEventListener('click', clearFinanceSelection);
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -386,4 +403,159 @@ window.addEventListener('DOMContentLoaded', () => {
   initialiseLeafletMap();
   initialiseGoogleMap();
   loadSurveyDays();
+  loadFinanceTransactions();
 });
+
+function renderFinanceTables(snapshot) {
+  state.finance.snapshot = snapshot;
+  const incomeBody = document.getElementById('income-body');
+  const expenseBody = document.getElementById('expense-body');
+  if (!incomeBody || !expenseBody) {
+    return;
+  }
+
+  const renderRows = (tbody, entries) => {
+    tbody.innerHTML = '';
+    if (!entries.length) {
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML = '<td colspan="6">No entries recorded yet.</td>';
+      tbody.appendChild(emptyRow);
+      return;
+    }
+
+    entries.forEach((transaction) => {
+      const row = document.createElement('tr');
+      row.dataset.transactionId = transaction.transaction_id;
+      row.innerHTML = `
+        <td>${transaction.description}</td>
+        <td>${transaction.category}</td>
+        <td>${formatCurrency(transaction.amount)}</td>
+        <td>${transaction.occurred_on}</td>
+        <td>${renderMetadataSummary(transaction.metadata)}</td>
+        <td><button type="button" class="duplicate-transaction" data-transaction="${transaction.transaction_id}">Duplicate</button></td>
+      `;
+      if (state.finance.selectedId === transaction.transaction_id) {
+        row.classList.add('selected');
+      }
+      tbody.appendChild(row);
+    });
+  };
+
+  renderRows(incomeBody, snapshot.income);
+  renderRows(expenseBody, snapshot.expenses);
+  bindFinanceDuplicateButtons();
+}
+
+function renderMetadataSummary(metadata) {
+  const entries = Object.entries(metadata || {});
+  if (!entries.length) {
+    return '—';
+  }
+  return entries.map(([key, value]) => `${key}: ${value}`).join(', ');
+}
+
+function bindFinanceDuplicateButtons() {
+  document.querySelectorAll('.duplicate-transaction').forEach((button) => {
+    button.addEventListener('click', () => {
+      const transaction = findFinanceTransaction(button.dataset.transaction);
+      if (transaction) {
+        prepareFinanceForm(transaction);
+      }
+    });
+  });
+}
+
+function findFinanceTransaction(transactionId) {
+  const { income, expenses } = state.finance.snapshot;
+  return [...income, ...expenses].find((entry) => entry.transaction_id === transactionId) || null;
+}
+
+function prepareFinanceForm(transaction) {
+  const form = document.getElementById('finance-duplicate-form');
+  if (!form) {
+    return;
+  }
+  form.source_transaction_id.value = transaction.transaction_id;
+  form.description.value = transaction.description;
+  form.category.value = transaction.category;
+  form.amount.value = transaction.amount;
+  form.occurred_on.value = transaction.occurred_on;
+  form.transaction_type.value = transaction.transaction_type;
+  form.metadata.value = Object.keys(transaction.metadata || {}).length
+    ? JSON.stringify(transaction.metadata, null, 2)
+    : '';
+  state.finance.selectedId = transaction.transaction_id;
+  updateFinanceSelectionSummary(transaction);
+  highlightFinanceSelection();
+}
+
+function clearFinanceSelection() {
+  const form = document.getElementById('finance-duplicate-form');
+  if (!form) {
+    return;
+  }
+  form.reset();
+  form.source_transaction_id.value = '';
+  state.finance.selectedId = null;
+  updateFinanceSelectionSummary(null);
+  highlightFinanceSelection();
+}
+
+function updateFinanceSelectionSummary(transaction) {
+  const summary = document.getElementById('finance-selection-summary');
+  if (!summary) {
+    return;
+  }
+  if (!transaction) {
+    summary.textContent = 'Select an entry to duplicate its details.';
+    return;
+  }
+  summary.textContent = `Duplicating ${transaction.transaction_type} ${transaction.transaction_id}. Adjust any fields before saving.`;
+}
+
+function highlightFinanceSelection() {
+  document.querySelectorAll('#finance-panel tbody tr').forEach((row) => {
+    if (row.dataset.transactionId === state.finance.selectedId) {
+      row.classList.add('selected');
+    } else {
+      row.classList.remove('selected');
+    }
+  });
+}
+
+async function loadFinanceTransactions() {
+  try {
+    const snapshot = await safeJsonFetch('/finance/transactions');
+    renderFinanceTables(snapshot);
+  } catch (error) {
+    const output = document.getElementById('finance-output');
+    if (output) {
+      output.textContent = `Failed to load finance data: ${error.message}`;
+    }
+  }
+}
+
+async function submitFinanceDuplicate(event) {
+  event.preventDefault();
+  const form = event.target;
+  const output = document.getElementById('finance-output');
+  if (!form.source_transaction_id.value) {
+    if (output) {
+      output.textContent = 'Choose an entry to duplicate before submitting.';
+    }
+    return;
+  }
+  const formData = new FormData(form);
+  try {
+    const payload = await safeJsonFetch('/finance/duplicate', { method: 'POST', body: formData });
+    renderFinanceTables(payload.snapshot);
+    if (output) {
+      output.textContent = JSON.stringify(payload.transaction, null, 2);
+    }
+    appendLog(`Duplicated transaction ${form.source_transaction_id.value}.`);
+  } catch (error) {
+    if (output) {
+      output.textContent = `Duplication failed: ${error.message}`;
+    }
+  }
+}

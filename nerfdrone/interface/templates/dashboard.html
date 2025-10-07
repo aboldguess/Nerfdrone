@@ -144,6 +144,83 @@
         <pre id="annotation-output" class="output">Annotation results appear here.</pre>
     </section>
 
+    <section class="panel" id="finance-panel">
+        <h2>7. Track income and expenses</h2>
+        <p>Salaries and other repeating entries often share the same details. Select an existing record, duplicate it, tweak the fields, and save the copy in seconds.</p>
+        <div class="finance-layout">
+            <div class="finance-columns">
+                <div class="finance-column">
+                    <h3>Income</h3>
+                    <table class="finance-table" aria-label="Income ledger">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th>Amount</th>
+                                <th>Date</th>
+                                <th>Metadata</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="income-body">
+                            <tr><td colspan="6">Loading income records…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="finance-column">
+                    <h3>Expenses</h3>
+                    <table class="finance-table" aria-label="Expense ledger">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th>Amount</th>
+                                <th>Date</th>
+                                <th>Metadata</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expense-body">
+                            <tr><td colspan="6">Loading expense records…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <form id="finance-duplicate-form" class="finance-form">
+                <p id="finance-selection-summary" class="finance-hint">Select an entry to duplicate its details.</p>
+                <input type="hidden" name="source_transaction_id" value="">
+                <div class="finance-form-grid">
+                    <label>Description
+                        <input type="text" name="description" placeholder="e.g. Pilot salary" required>
+                    </label>
+                    <label>Category
+                        <input type="text" name="category" placeholder="Payroll" required>
+                    </label>
+                    <label>Amount (£)
+                        <input type="number" step="0.01" min="0" name="amount" placeholder="0.00" required>
+                    </label>
+                    <label>Date
+                        <input type="date" name="occurred_on" required>
+                    </label>
+                    <label>Type
+                        <select name="transaction_type" required>
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                    </label>
+                    <label>Metadata (JSON)
+                        <textarea name="metadata" rows="3" placeholder='{"key": "value"}'></textarea>
+                    </label>
+                </div>
+                <div class="finance-form-actions">
+                    <button type="submit">Create duplicate</button>
+                    <button type="button" class="secondary" id="finance-clear-selection">Clear selection</button>
+                </div>
+            </form>
+        </div>
+        <pre id="finance-output" class="output">Finance activity and debug info will be displayed here.</pre>
+    </section>
+
     <section class="panel">
         <h2>Need more?</h2>
         <ul>
