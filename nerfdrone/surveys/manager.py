@@ -16,7 +16,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Dict, Iterable, List, Optional, Tuple
+import math
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..logging_utils import get_logger
 
@@ -66,7 +67,15 @@ class SurveyCapture:
     bounds: Tuple[float, float, float, float]
     assets: List[SurveyAsset]
     point_cloud_path: str
+    flight_time_minutes: float
+    data_volume_gb: float
     notes: List[str] = field(default_factory=list)
+
+    @property
+    def acreage(self) -> float:
+        """Approximate surveyed acres derived from bounding coordinates."""
+
+        return _estimate_acres(self.bounds)
 
     def to_geojson(self) -> Dict:
         """Return a GeoJSON Feature for map overlays."""
@@ -88,6 +97,17 @@ class CaptureComparison:
     target_capture: SurveyCapture
     asset_differences: Dict[str, Dict[str, float]]
     narrative: str
+
+
+def _estimate_acres(bounds: Tuple[float, float, float, float]) -> float:
+    """Approximate acreage represented by the provided bounds."""
+
+    lat_min, lon_min, lat_max, lon_max = bounds
+    mean_lat_radians = math.radians((lat_min + lat_max) / 2)
+    lat_distance_m = abs(lat_max - lat_min) * 111_320
+    lon_distance_m = abs(lon_max - lon_min) * (111_320 * math.cos(mean_lat_radians))
+    area_sq_m = lat_distance_m * lon_distance_m
+    return area_sq_m * 0.000247105
 
 
 class SurveyManager:
@@ -132,6 +152,8 @@ class SurveyManager:
                     ),
                 ],
                 point_cloud_path="/point-clouds/central-river-2024-03-14.ply",
+                flight_time_minutes=82.0,
+                data_volume_gb=14.4,
             ),
             SurveyCapture(
                 capture_id="central_river_2024_05_22",
@@ -161,6 +183,8 @@ class SurveyManager:
                     ),
                 ],
                 point_cloud_path="/point-clouds/central-river-2024-05-22.ply",
+                flight_time_minutes=88.0,
+                data_volume_gb=16.2,
             ),
         ]
 
@@ -168,6 +192,38 @@ class SurveyManager:
         """Return captures ordered by capture date descending."""
 
         return sorted(self._captures.values(), key=lambda capture: capture.captured_on, reverse=True)
+
+    def summarise_metrics(self) -> Dict[str, Any]:
+        """Aggregate survey insights for dashboard visualisation."""
+
+        captures = self.list_captures()
+        if not captures:
+            return {
+                "total_surveys": 0,
+                "total_acres": 0.0,
+                "total_flight_hours": 0.0,
+                "total_data_gb": 0.0,
+                "average_assets_per_survey": 0.0,
+                "latest_capture_name": "",
+                "latest_capture_date": "",
+            }
+
+        total_surveys = len(captures)
+        total_acres = sum(capture.acreage for capture in captures)
+        total_flight_hours = sum(capture.flight_time_minutes for capture in captures) / 60.0
+        total_data_gb = sum(capture.data_volume_gb for capture in captures)
+        average_assets = sum(len(capture.assets) for capture in captures) / total_surveys
+        latest_capture = captures[0]
+
+        return {
+            "total_surveys": total_surveys,
+            "total_acres": total_acres,
+            "total_flight_hours": total_flight_hours,
+            "total_data_gb": total_data_gb,
+            "average_assets_per_survey": average_assets,
+            "latest_capture_name": latest_capture.name,
+            "latest_capture_date": latest_capture.captured_on.isoformat(),
+        }
 
     def get_capture(self, capture_id: str) -> SurveyCapture:
         """Retrieve a capture, raising informative error if not known."""

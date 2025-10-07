@@ -1,9 +1,13 @@
 {# Mini README: Dashboard template for Nerfdrone control centre.
-   Provides a clear landing experience with quick instructions and
-   interactive components for route planning, ingestion, and analysis.
-   The template now includes dual map providers, survey comparisons,
-   and annotation utilities to guide operators through end-to-end
-   mission review without leaving the interface.
+   Structure overview:
+     * Navigation chrome (brand bar + profile menu).
+     * Workspace grid that pairs a tabbed main column with a contextual sidebar.
+     * Mission tabs covering dashboard metrics, planning, intelligence,
+       collaboration, equipment, surveys, and support resources.
+
+   Each tab keeps instructions on-screen so crews understand the workflow
+   without referring to documentation. Sub-navigation inside the equipment
+   and survey panels scaffolds future features while maintaining clarity.
 #}
 <!DOCTYPE html>
 <html lang="en">
@@ -33,126 +37,260 @@
         </div>
     </div>
 </nav>
-<main class="container">
-    <section class="hero">
-        <h1>Plan missions and build intelligent 3D reconstructions.</h1>
-        <p>Follow the guided workflow below. Each panel explains exactly what to do so operators can plan, capture, and review surveys confidently.</p>
-    </section>
+<main class="workspace">
+    <div class="main-column">
+        <section class="hero">
+            <h1>Mission control with live readiness insights.</h1>
+            <p>Use the tabs to move from strategic planning to survey review. Headline metrics stay visible on the Dashboard, while each workspace panel keeps its own playbook inline.</p>
+        </section>
 
-    <section class="panel">
-        <h2>1. Choose a drone provider</h2>
-        <p>Select your drone platform. Additional providers can be added later without modifying this page.</p>
-        <select id="provider-select">
-            {% for provider in providers %}
-            <option value="{{ provider }}">{{ provider|capitalize }}</option>
-            {% endfor %}
-        </select>
-        <p class="hint">Current providers are mocked so you can explore the workflow without hardware.</p>
-    </section>
+        <div class="tabs" role="tablist" aria-label="Mission workflow">
+            <button class="tab-button active" role="tab" id="tab-dashboard-button" aria-selected="true" aria-controls="tab-dashboard" data-tab="dashboard">Dashboard</button>
+            <button class="tab-button" role="tab" id="tab-flight-planning-button" aria-selected="false" aria-controls="tab-flight-planning" data-tab="flight-planning">Flight planning</button>
+            <button class="tab-button" role="tab" id="tab-intelligence-button" aria-selected="false" aria-controls="tab-intelligence" data-tab="intelligence">Intelligence</button>
+            <button class="tab-button" role="tab" id="tab-collaboration-button" aria-selected="false" aria-controls="tab-collaboration" data-tab="collaboration">Collaboration</button>
+            <button class="tab-button" role="tab" id="tab-my-equipment-button" aria-selected="false" aria-controls="tab-my-equipment" data-tab="my-equipment">My equipment</button>
+            <button class="tab-button" role="tab" id="tab-my-surveys-button" aria-selected="false" aria-controls="tab-my-surveys" data-tab="my-surveys">My surveys</button>
+            <button class="tab-button" role="tab" id="tab-support-button" aria-selected="false" aria-controls="tab-support" data-tab="support">Support</button>
+        </div>
 
-    <section class="panel">
-        <h2>2. Draw your capture area on the map</h2>
-        <p>Use the toolbar to sketch the survey boundary. Switch between OpenStreetMap and Google basemaps to match operator preference.</p>
-        <div class="map-toggle">
-            <label><input type="radio" name="map-provider" value="osm" checked> OpenStreetMap</label>
-            <label><input type="radio" name="map-provider" value="google"> Google Maps</label>
-            {% if not google_maps_key %}
-            <span class="hint">Add a Google Maps API key in the settings file to enable the Google layer.</span>
-            {% endif %}
-        </div>
-        <div id="map-container">
-            <div id="leaflet-map" class="map-view" aria-label="OpenStreetMap survey planner"></div>
-            <div id="google-map" class="map-view hidden" aria-label="Google Maps survey planner"></div>
-        </div>
-        <p class="hint">Once your polygon is ready, click “Generate Route” below. Coordinates are captured automatically.</p>
-        <form id="route-form">
-            <div class="form-grid">
-                <label>Latitude min<input type="number" step="0.0001" name="lat_min" value="51.5000" required></label>
-                <label>Longitude min<input type="number" step="0.0001" name="lon_min" value="-0.1300" required></label>
-                <label>Latitude max<input type="number" step="0.0001" name="lat_max" value="51.5010" required></label>
-                <label>Longitude max<input type="number" step="0.0001" name="lon_max" value="-0.1290" required></label>
+        <section id="tab-dashboard" class="tab-panel panel active" role="tabpanel" aria-labelledby="tab-dashboard-button" data-tab="dashboard">
+            <h2>Mission readiness dashboard</h2>
+            <p>Snapshot metrics keep stakeholders informed about fleet utilisation, coverage, and data throughput.</p>
+            <div class="dashboard-stats" role="list">
+                <article class="stat-card" role="listitem">
+                    <h3>Total surveys</h3>
+                    <p class="stat-value">{{ metrics.total_surveys }}</p>
+                    <p class="stat-caption">Completed capture campaigns across the fleet.</p>
+                </article>
+                <article class="stat-card" role="listitem">
+                    <h3>Area surveyed</h3>
+                    <p class="stat-value">{{ metrics.total_acres | round(1) }} <span class="stat-unit">acres</span></p>
+                    <p class="stat-caption">Derived from recent capture polygons.</p>
+                </article>
+                <article class="stat-card" role="listitem">
+                    <h3>Flight time</h3>
+                    <p class="stat-value">{{ metrics.total_flight_hours | round(1) }} <span class="stat-unit">hours</span></p>
+                    <p class="stat-caption">Calculated from logged mission durations.</p>
+                </article>
+                <article class="stat-card" role="listitem">
+                    <h3>Data archived</h3>
+                    <p class="stat-value">{{ metrics.total_data_gb | round(1) }} <span class="stat-unit">GB</span></p>
+                    <p class="stat-caption">Compressed payloads ready for analytics.</p>
+                </article>
             </div>
-            <input type="hidden" name="area_geojson" id="area-geojson">
-            <button type="submit">Generate Route</button>
-        </form>
-        <pre id="route-output" class="output">Draw a polygon and generate a preview route.</pre>
-    </section>
+            <div class="dashboard-breakdown">
+                <div>
+                    <h3>Latest capture</h3>
+                    {% if metrics.latest_capture_name %}
+                    <p>{{ metrics.latest_capture_name }} — {{ metrics.latest_capture_date }}</p>
+                    {% else %}
+                    <p>No survey data has been recorded yet.</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <h3>Average assets per survey</h3>
+                    <p>{{ metrics.average_assets_per_survey | round(1) }}</p>
+                    <p class="hint">Monitor this value to understand feature detection density.</p>
+                </div>
+            </div>
+        </section>
 
-    <section class="panel">
-        <h2>3. Upload footage for testing</h2>
-        <p>Test the ingestion pipeline with mobile footage, archived videos, or live streams.</p>
-        <form id="upload-form" enctype="multipart/form-data">
-            <label>Footage source
-                <select name="source" required>
-                    <option value="mobile_upload">Mobile phone camera</option>
-                    <option value="file_upload">Existing video file</option>
-                    <option value="live_stream">Live stream (simulated)</option>
+        <section id="tab-flight-planning" class="tab-panel panel" role="tabpanel" aria-labelledby="tab-flight-planning-button" data-tab="flight-planning">
+            <h2>1. Configure your next mission</h2>
+            <p>Pick the operational provider, then sketch the capture area to generate a test flight plan.</p>
+            <label>Preferred provider
+                <select id="provider-select">
+                    {% for provider in providers %}
+                    <option value="{{ provider }}">{{ provider|capitalize }}</option>
+                    {% endfor %}
                 </select>
             </label>
-            <label>Select video file<input type="file" name="video" accept="video/*" required></label>
-            <button type="submit">Ingest Footage</button>
-        </form>
-        <pre id="upload-output" class="output">Upload status will be displayed here.</pre>
-    </section>
-
-    <section class="panel">
-        <h2>4. Review automatic classifications</h2>
-        <p>The classifier currently supports: {{ supported_labels|join(', ') }}. Click the button to run a demo.</p>
-        <button id="classify-button">Run demo classification</button>
-        <pre id="classify-output" class="output">Classification results show up here.</pre>
-    </section>
-
-    <section class="panel">
-        <h2>5. Inspect survey history</h2>
-        <p>Pick a survey day to overlay its capture area, browse the point cloud export, and review detected assets.</p>
-        <div class="survey-layout">
-            <div class="survey-list">
-                <ul id="survey-days"></ul>
+            <p class="hint">Providers are mocked so you can explore the workflow safely before connecting real hardware.</p>
+            <h3>2. Draw your capture area on the map</h3>
+            <p>Use the toolbar to sketch the survey boundary. Switch between OpenStreetMap and Google basemaps to match operator preference.</p>
+            <div class="map-toggle">
+                <label><input type="radio" name="map-provider" value="osm" checked> OpenStreetMap</label>
+                <label><input type="radio" name="map-provider" value="google"> Google Maps</label>
+                {% if not google_maps_key %}
+                <span class="hint">Add a Google Maps API key in the settings file to enable the Google layer.</span>
+                {% endif %}
             </div>
-            <div class="survey-details">
-                <h3>Survey Details</h3>
-                <p id="survey-summary">Select a survey to see its metadata and quick links.</p>
-                <div id="point-cloud-link"></div>
-                <div id="asset-table"></div>
+            <div id="map-container">
+                <div id="leaflet-map" class="map-view" aria-label="OpenStreetMap survey planner"></div>
+                <div id="google-map" class="map-view hidden" aria-label="Google Maps survey planner"></div>
             </div>
+            <p class="hint">Once your polygon is ready, click “Generate Route” below. Coordinates are captured automatically.</p>
+            <form id="route-form">
+                <div class="form-grid">
+                    <label>Latitude min<input type="number" step="0.0001" name="lat_min" value="51.5000" required></label>
+                    <label>Longitude min<input type="number" step="0.0001" name="lon_min" value="-0.1300" required></label>
+                    <label>Latitude max<input type="number" step="0.0001" name="lat_max" value="51.5010" required></label>
+                    <label>Longitude max<input type="number" step="0.0001" name="lon_max" value="-0.1290" required></label>
+                </div>
+                <input type="hidden" name="area_geojson" id="area-geojson">
+                <button type="submit">Generate Route</button>
+            </form>
+            <pre id="route-output" class="output">Draw a polygon and generate a preview route.</pre>
+        </section>
+
+        <section id="tab-intelligence" class="tab-panel panel" role="tabpanel" aria-labelledby="tab-intelligence-button" data-tab="intelligence">
+            <h2>3. Review automatic classifications</h2>
+            <p>The classifier currently supports: {{ supported_labels|join(', ') }}. Click the button to run a demo.</p>
+            <button id="classify-button">Run demo classification</button>
+            <pre id="classify-output" class="output">Classification results show up here.</pre>
+        </section>
+
+        <section id="tab-collaboration" class="tab-panel panel" role="tabpanel" aria-labelledby="tab-collaboration-button" data-tab="collaboration">
+            <h2>4. Compare captures and annotate assets</h2>
+            <p>Measure change over time by choosing two survey dates. Optionally focus on a specific asset. Add annotations directly from this panel.</p>
+            <form id="comparison-form" class="form-grid">
+                <label>Base capture
+                    <select name="base_capture" id="base-capture-select"></select>
+                </label>
+                <label>Target capture
+                    <select name="target_capture" id="target-capture-select"></select>
+                </label>
+                <label>Focus asset (optional)
+                    <input type="text" name="focus_asset" placeholder="asset identifier">
+                </label>
+                <button type="submit">Compare Surveys</button>
+            </form>
+            <pre id="comparison-output" class="output">Comparison narrative appears here.</pre>
+            <form id="annotation-form" class="form-grid">
+                <label>Capture ID<input type="text" name="capture_id" placeholder="central_river_2024_05_22" required></label>
+                <label>Asset ID<input type="text" name="asset_id" placeholder="bridge_east" required></label>
+                <label>Note<input type="text" name="note" placeholder="Describe the observation" required></label>
+                <button type="submit">Record Annotation</button>
+            </form>
+            <pre id="annotation-output" class="output">Annotation results appear here.</pre>
+        </section>
+
+        <section id="tab-my-equipment" class="tab-panel panel" role="tabpanel" aria-labelledby="tab-my-equipment-button" data-tab="my-equipment">
+            <h2>Keep hardware deployment-ready</h2>
+            <div class="panel-with-subnav" data-subnav-label="equipment">
+                <nav class="panel-subnav" aria-label="Equipment categories">
+                    <button class="subnav-button active" type="button" data-subnav="equipment-drones">Drones</button>
+                    <button class="subnav-button" type="button" data-subnav="equipment-cameras">Cameras</button>
+                    <button class="subnav-button" type="button" data-subnav="equipment-cctv">CCTV</button>
+                </nav>
+                <div class="subpanel-stack">
+                    <article id="equipment-drones" class="subpanel active">
+                        <h3>Drone fleet</h3>
+                        <p>Log maintenance slots, firmware status, and readiness notes here. Future integrations can sync with provider APIs.</p>
+                        <ul class="checklist">
+                            <li>Battery health checks scheduled weekly.</li>
+                            <li>Propeller replacement kit stock verified.</li>
+                            <li>Next compliance review due in 14 days.</li>
+                        </ul>
+                    </article>
+                    <article id="equipment-cameras" class="subpanel">
+                        <h3>Camera payloads</h3>
+                        <p>Document calibration runs, lens swaps, and sensor diagnostics. Add upload fields as integrations come online.</p>
+                        <p class="hint">Tip: Pair each camera with its drone in the asset registry to simplify troubleshooting.</p>
+                    </article>
+                    <article id="equipment-cctv" class="subpanel">
+                        <h3>Ground CCTV</h3>
+                        <p>Track ground-based coverage that complements aerial footage. Use this space to record outage windows or integrate live feeds.</p>
+                        <p class="hint">Future releases will stream uptime metrics directly into this view.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-my-surveys" class="tab-panel panel" role="tabpanel" aria-labelledby="tab-my-surveys-button" data-tab="my-surveys">
+            <h2>Manage surveys end to end</h2>
+            <div class="panel-with-subnav" data-subnav-label="survey">
+                <nav class="panel-subnav" aria-label="Survey actions">
+                    <button class="subnav-button active" type="button" data-subnav="survey-new">New</button>
+                    <button class="subnav-button" type="button" data-subnav="survey-upload">Upload</button>
+                    <button class="subnav-button" type="button" data-subnav="survey-ingest">Ingest</button>
+                    <button class="subnav-button" type="button" data-subnav="survey-visualise">Visualise</button>
+                </nav>
+                <div class="subpanel-stack">
+                    <article id="survey-new" class="subpanel active">
+                        <h3>Start a new survey</h3>
+                        <p>Kick off planning from here. Use the Flight planning tab to draw your AOI and generate a provisional route, then brief pilots with the exported JSON.</p>
+                        <ul class="checklist">
+                            <li>Confirm objective and location in mission brief.</li>
+                            <li>Allocate aircraft from the My equipment &rarr; Drones view.</li>
+                            <li>Record target weather window inside the collaboration tab.</li>
+                        </ul>
+                    </article>
+                    <article id="survey-upload" class="subpanel">
+                        <h3>Upload field packs</h3>
+                        <p>Drop zipped ground notes, imagery, or LiDAR exports here once storage integrations are configured. For now, use this space to outline expected data sources.</p>
+                        <form class="stub-form" aria-label="Survey upload stub">
+                            <label>Upload package placeholder
+                                <input type="file" disabled aria-disabled="true">
+                            </label>
+                            <p class="hint">Integration hooks will be wired once storage credentials are available.</p>
+                        </form>
+                    </article>
+                    <article id="survey-ingest" class="subpanel">
+                        <h3>Ingest captured footage</h3>
+                        <p>Test the ingestion pipeline with mobile footage, archived videos, or live streams.</p>
+                        <form id="upload-form" enctype="multipart/form-data">
+                            <label>Footage source
+                                <select name="source" required>
+                                    <option value="mobile_upload">Mobile phone camera</option>
+                                    <option value="file_upload">Existing video file</option>
+                                    <option value="live_stream">Live stream (simulated)</option>
+                                </select>
+                            </label>
+                            <label>Select video file<input type="file" name="video" accept="video/*" required></label>
+                            <button type="submit">Ingest Footage</button>
+                        </form>
+                        <pre id="upload-output" class="output">Upload status will be displayed here.</pre>
+                    </article>
+                    <article id="survey-visualise" class="subpanel">
+                        <h3>Visualise survey library</h3>
+                        <p>Pick a survey day to overlay its capture area, browse the point cloud export, and review detected assets.</p>
+                        <div class="survey-layout">
+                            <div class="survey-list">
+                                <ul id="survey-days"></ul>
+                            </div>
+                            <div class="survey-details">
+                                <h4>Survey details</h4>
+                                <p id="survey-summary">Select a survey to see its metadata and quick links.</p>
+                                <div id="point-cloud-link"></div>
+                                <div id="asset-table"></div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-support" class="tab-panel panel" role="tabpanel" aria-labelledby="tab-support-button" data-tab="support">
+            <h2>Need more?</h2>
+            <ul>
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            <p>Future modules can be dropped into this dashboard without redesign thanks to the pluggable architecture.</p>
+        </section>
+    </div>
+
+    <aside class="sidebar" aria-label="Contextual guidance">
+        <div class="sidebar-section">
+            <h2 id="sidebar-title">Mission overview</h2>
+            <p id="sidebar-description">Check the dashboard for headline stats, then move into planning and survey management.</p>
         </div>
-        <pre id="survey-debug" class="output">Survey overlays and notes will appear here.</pre>
-    </section>
-
-    <section class="panel">
-        <h2>6. Compare captures and annotate assets</h2>
-        <p>Measure change over time by choosing two survey dates. Optionally focus on a specific asset. Add annotations directly from this panel.</p>
-        <form id="comparison-form" class="form-grid">
-            <label>Base capture
-                <select name="base_capture" id="base-capture-select"></select>
-            </label>
-            <label>Target capture
-                <select name="target_capture" id="target-capture-select"></select>
-            </label>
-            <label>Focus asset (optional)
-                <input type="text" name="focus_asset" placeholder="asset identifier">
-            </label>
-            <button type="submit">Compare Surveys</button>
-        </form>
-        <pre id="comparison-output" class="output">Comparison narrative appears here.</pre>
-        <form id="annotation-form" class="form-grid">
-            <label>Capture ID<input type="text" name="capture_id" placeholder="central_river_2024_05_22" required></label>
-            <label>Asset ID<input type="text" name="asset_id" placeholder="bridge_east" required></label>
-            <label>Note<input type="text" name="note" placeholder="Describe the observation" required></label>
-            <button type="submit">Record Annotation</button>
-        </form>
-        <pre id="annotation-output" class="output">Annotation results appear here.</pre>
-    </section>
-
-    <section class="panel">
-        <h2>Need more?</h2>
-        <ul>
-            {% for message in messages %}
-            <li>{{ message }}</li>
-            {% endfor %}
-        </ul>
-        <p>Future modules can be dropped into this dashboard without redesign thanks to the pluggable architecture.</p>
-    </section>
+        <div class="sidebar-section">
+            <h3>Helpful actions</h3>
+            <ul id="sidebar-tips">
+                <li>Review the provider notes before connecting live hardware.</li>
+                <li>Stay on this screen for quick-start reminders while you work.</li>
+            </ul>
+        </div>
+        <div class="sidebar-section">
+            <h3>Debug log</h3>
+            <p class="hint">All API responses and guidance appear here for rapid troubleshooting.</p>
+            <pre id="survey-debug" class="output">System guidance and debug info appears here.</pre>
+        </div>
+    </aside>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-nmnw18d1GwaGb0s5momkGLumZ5qX6Ch12eDregO/flMHDL/95B2S/bR5E2wE8p8nXl16rYPDhmPEw24kTx5cAA==" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js" integrity="sha512-VOPB6jcikacrTP2PzefDs2fzGEylh4G6dkprdFMn/hTyBC0bY4Z1cdqUPVHtV6nRvWmvMRGsiE9zMDFMvx6bBA==" crossorigin=""></script>

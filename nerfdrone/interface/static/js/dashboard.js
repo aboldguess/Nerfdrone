@@ -6,6 +6,8 @@
  *   - Map integration supporting Leaflet (OpenStreetMap) and Google Maps.
  *   - Form handlers covering route planning, ingestion, classification,
  *     survey comparisons, and annotations.
+ *   - Tab controller that updates a contextual sidebar so operators stay
+ *     oriented while navigating the workflow.
  *
  * The script keeps all user guidance visible on screen, logs rich debug
  * information to assist operators, and remains extensible for future
@@ -15,6 +17,7 @@
 
 const state = {
   activeMap: 'osm',
+  activeTab: 'dashboard',
   drawnGeoJson: null,
   leaflet: {
     map: null,
@@ -31,10 +34,119 @@ const state = {
 };
 
 const logPanel = document.getElementById('survey-debug');
+const sidebarTitle = document.getElementById('sidebar-title');
+const sidebarDescription = document.getElementById('sidebar-description');
+const sidebarTips = document.getElementById('sidebar-tips');
+
+// Context copy for the sidebar. Keeping it here makes it easy to keep messages
+// in sync with functionality changes.
+const tabContext = {
+  dashboard: {
+    title: 'Mission overview',
+    description: 'Check fleet stats before deploying the next sortie.',
+    tips: [
+      'Share the dashboard snapshot during stand-ups.',
+      'Watch for anomalies in acreage or data volume to spot issues early.',
+    ],
+  },
+  'flight-planning': {
+    title: 'Plan your mission area',
+    description: 'Select your provider, draw the capture polygon, and preview routing.',
+    tips: [
+      'Switch basemaps if local imagery is clearer in Google Maps.',
+      'The debug log records every route request for later analysis.',
+    ],
+  },
+  intelligence: {
+    title: 'Review automatic classifications',
+    description: 'Generate demo results to confirm the AI stack is reachable.',
+    tips: [
+      'Compare label probabilities to your mission notes.',
+      'Use the output JSON to debug integration downstream.',
+    ],
+  },
+  collaboration: {
+    title: 'Collaborate with the team',
+    description: 'Compare captures and record annotations for downstream crews.',
+    tips: [
+      'Log differences per asset to track remediation progress.',
+      'Annotations are appended instantly so you can iterate fast.',
+    ],
+  },
+  'my-equipment': {
+    title: 'Track fleet condition',
+    description: 'Use the equipment sub-tabs to keep drones and payloads audit-ready.',
+    tips: [
+      'Capture firmware versions alongside maintenance notes.',
+      'Flag CCTV outages so the ground team can react quickly.',
+    ],
+  },
+  'my-surveys': {
+    title: 'Manage surveys end to end',
+    description: 'Move from planning, to ingestion, to review without leaving the workspace.',
+    tips: [
+      'Start in the “New” sub-tab to brief the mission.',
+      'Use “Visualise” to explore captured assets alongside the map overlay.',
+    ],
+  },
+  support: {
+    title: 'Support and next steps',
+    description: 'Keep an eye on the roadmap notes and implementation checklist.',
+    tips: [
+      'Capture operator feedback and add it as annotations.',
+      'Reach out to engineering if new modules are required.',
+    ],
+  },
+};
 
 function appendLog(message) {
+  if (!logPanel) {
+    return;
+  }
   const timestamp = new Date().toISOString();
   logPanel.textContent = `${timestamp}: ${message}\n${logPanel.textContent}`;
+}
+
+function updateSidebar(tabId) {
+  const context = tabContext[tabId];
+  if (!context) {
+    return;
+  }
+  if (sidebarTitle) {
+    sidebarTitle.textContent = context.title;
+  }
+  if (sidebarDescription) {
+    sidebarDescription.textContent = context.description;
+  }
+  if (sidebarTips) {
+    sidebarTips.innerHTML = '';
+    context.tips.forEach((tip) => {
+      const item = document.createElement('li');
+      item.textContent = tip;
+      sidebarTips.appendChild(item);
+    });
+  }
+}
+
+function activateTab(tabId) {
+  state.activeTab = tabId;
+  document.querySelectorAll('.tab-button').forEach((button) => {
+    const isActive = button.dataset.tab === tabId;
+    button.setAttribute('aria-selected', isActive.toString());
+    button.classList.toggle('active', isActive);
+  });
+  document.querySelectorAll('.tab-panel').forEach((panel) => {
+    const isActive = panel.dataset.tab === tabId;
+    panel.classList.toggle('active', isActive);
+  });
+  updateSidebar(tabId);
+  appendLog(`Activated ${tabId} tab.`);
+
+  // Leaflet maps require an explicit resize notification when their container
+  // toggles visibility. The timeout gives the browser a frame to apply layout.
+  if (tabId === 'flight-planning' && state.leaflet.map) {
+    window.setTimeout(() => state.leaflet.map.invalidateSize(), 150);
+  }
 }
 
 async function safeJsonFetch(url, options = {}) {
@@ -369,20 +481,70 @@ function setupProfileMenu() {
 }
 
 function setupEventListeners() {
-  document.getElementById('route-form').addEventListener('submit', submitRoute);
-  document.getElementById('upload-form').addEventListener('submit', submitUpload);
-  document.getElementById('classify-button').addEventListener('click', runClassification);
-  document.getElementById('comparison-form').addEventListener('submit', submitComparison);
-  document.getElementById('annotation-form').addEventListener('submit', submitAnnotation);
+  const routeForm = document.getElementById('route-form');
+  if (routeForm) {
+    routeForm.addEventListener('submit', submitRoute);
+  }
+  const uploadForm = document.getElementById('upload-form');
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', submitUpload);
+  }
+  const classifyButton = document.getElementById('classify-button');
+  if (classifyButton) {
+    classifyButton.addEventListener('click', runClassification);
+  }
+  const comparisonForm = document.getElementById('comparison-form');
+  if (comparisonForm) {
+    comparisonForm.addEventListener('submit', submitComparison);
+  }
+  const annotationForm = document.getElementById('annotation-form');
+  if (annotationForm) {
+    annotationForm.addEventListener('submit', submitAnnotation);
+  }
 
   document.querySelectorAll('input[name="map-provider"]').forEach((input) => {
     input.addEventListener('change', (event) => toggleMap(event.target.value));
   });
 }
 
+function setupTabs() {
+  document.querySelectorAll('.tab-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (button.dataset.tab) {
+        activateTab(button.dataset.tab);
+      }
+    });
+  });
+  activateTab(state.activeTab);
+}
+
+function setupSubnavs() {
+  document.querySelectorAll('.panel-with-subnav').forEach((container) => {
+    const buttons = container.querySelectorAll('.subnav-button');
+    const panels = container.querySelectorAll('.subpanel');
+    if (!buttons.length || !panels.length) {
+      return;
+    }
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.subnav;
+        if (!target || button.classList.contains('active')) {
+          return;
+        }
+        buttons.forEach((btn) => btn.classList.toggle('active', btn === button));
+        panels.forEach((panel) => panel.classList.toggle('active', panel.id === target));
+        const label = container.dataset.subnavLabel || 'section';
+        appendLog(`Switched ${label} subpanel to ${target}.`);
+      });
+    });
+  });
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   setupProfileMenu();
   setupEventListeners();
+  setupTabs();
+  setupSubnavs();
   initialiseLeafletMap();
   initialiseGoogleMap();
   loadSurveyDays();
