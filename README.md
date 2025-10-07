@@ -57,7 +57,7 @@ pip install -e .[nerf]
 ```
 
 > **Important:** The `nerf` extra pulls in `open3d`, which currently provides
-> prebuilt wheels only for Python 3.12 and earlier. Use Python 3.12 when
+> prebuilt wheels only for Python 3.11 and earlier. Use Python 3.11 when
 > installing the extra (our setup scripts will warn you automatically) or skip
 > the extra on newer interpreters to avoid pip dependency conflicts.
 
