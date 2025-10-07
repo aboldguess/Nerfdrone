@@ -32,7 +32,24 @@ def run(
     effective_host = host or settings.interface_host
     effective_port = port or settings.interface_port
     configure_root_logger()
-    typer.echo(f"Starting Nerfdrone on {effective_host}:{effective_port}")
+
+    # Provide human-friendly guidance on which URL to open in a browser. Binding to
+    # 0.0.0.0 is useful for exposing the service, but browsers cannot navigate to
+    # that sentinel address directly. We therefore surface localhost (or the chosen
+    # host) so operators avoid the ERR_ADDRESS_INVALID issue seen when pasting
+    # 0.0.0.0 into the URL bar.
+    browser_host = "127.0.0.1" if effective_host in {"0.0.0.0", "::"} else effective_host
+    typer.echo(
+        "Starting Nerfdrone on "
+        f"{effective_host}:{effective_port}.\n"
+        "Open your browser at "
+        f"http://{browser_host}:{effective_port}"
+        + (
+            " (use your machine's IP address for remote access)."
+            if effective_host in {"0.0.0.0", "::"}
+            else ""
+        )
+    )
     uvicorn.run(
         "nerfdrone.interface.web_app:create_application",
         host=effective_host,

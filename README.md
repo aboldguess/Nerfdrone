@@ -88,6 +88,12 @@ Restart the control centre after updating the environment file so the new key is
 python main_control_centre.py --host 0.0.0.0 --port 8000
 ```
 
+> **Tip:** Browsers cannot navigate to `0.0.0.0` directly. After the server
+> starts, open `http://127.0.0.1:8000` (or replace `127.0.0.1` with your
+> machine's IP address if you are accessing it from another device). Use
+> `--port 8008` to match the example in the screenshot if you prefer a
+> different port.
+
 Add `--production` to disable auto-reload when deploying to servers.
 
 ### 6. Run tests
