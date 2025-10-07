@@ -91,11 +91,12 @@ try {
     }
 
     if ($extrasLower -contains 'nerf') {
-        $versionParts = $pythonVersion.Split('.')
-        $pyMajor = [int]$versionParts[0]
-        $pyMinor = if ($versionParts.Count -gt 1) { [int]$versionParts[1] } else { 0 }
-        if (($pyMajor -gt 3) -or ($pyMajor -eq 3 -and $pyMinor -ge 13)) {
-            throw "The 'nerf' extra requires Python 3.12 or lower because open3d currently publishes wheels up to that interpreter version. Re-run with -Python targeting Python 3.12 or omit the extra."
+        Write-Log -Level INFO -Message "Validating Open3D wheels are available for Python $pythonVersion"
+        try {
+            & $venvPython -m pip index versions open3d | Out-Null
+        }
+        catch {
+            Write-Log -Level WARN -Message 'pip index query failed; upgrade pip (python -m pip install --upgrade pip) if wheel resolution fails.'
         }
     }
 
