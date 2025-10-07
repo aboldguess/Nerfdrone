@@ -28,6 +28,8 @@ def test_list_captures_returns_descending_order() -> None:
                 bounds=(0.0, 0.0, 1.0, 1.0),
                 assets=[],
                 point_cloud_path="/tmp/a.ply",
+                flight_time_minutes=60.0,
+                data_volume_gb=10.0,
             ),
             SurveyCapture(
                 capture_id="b",
@@ -36,6 +38,8 @@ def test_list_captures_returns_descending_order() -> None:
                 bounds=(0.0, 0.0, 1.0, 1.0),
                 assets=[],
                 point_cloud_path="/tmp/b.ply",
+                flight_time_minutes=72.0,
+                data_volume_gb=12.5,
             ),
         ]
     )
@@ -63,6 +67,8 @@ def test_compare_captures_highlights_new_asset() -> None:
                     )
                 ],
                 point_cloud_path="/tmp/first.ply",
+                flight_time_minutes=55.0,
+                data_volume_gb=8.0,
             ),
             SurveyCapture(
                 capture_id="second",
@@ -84,6 +90,8 @@ def test_compare_captures_highlights_new_asset() -> None:
                     ),
                 ],
                 point_cloud_path="/tmp/second.ply",
+                flight_time_minutes=65.0,
+                data_volume_gb=9.2,
             ),
         ]
     )
@@ -114,3 +122,60 @@ def test_bounds_from_geojson_validates_polygon() -> None:
 
     with pytest.raises(ValueError):
         bounds_from_geojson("{}")
+
+
+def test_summarise_metrics_returns_expected_totals() -> None:
+    """Dashboard summaries should aggregate acreage, hours, and assets."""
+
+    manager = SurveyManager(
+        captures=[
+            SurveyCapture(
+                capture_id="demo_one",
+                name="Alpha",
+                captured_on=date(2024, 6, 1),
+                bounds=(10.0, 20.0, 10.01, 20.01),
+                assets=[
+                    SurveyAsset(
+                        asset_id="asset_a",
+                        classification="bridge",
+                        representative_point=(10.005, 20.005),
+                        volume_cubic_m=100.0,
+                    )
+                ],
+                point_cloud_path="/tmp/alpha.ply",
+                flight_time_minutes=45.0,
+                data_volume_gb=5.0,
+            ),
+            SurveyCapture(
+                capture_id="demo_two",
+                name="Beta",
+                captured_on=date(2024, 6, 15),
+                bounds=(10.0, 20.0, 10.02, 20.02),
+                assets=[
+                    SurveyAsset(
+                        asset_id="asset_b",
+                        classification="road",
+                        representative_point=(10.015, 20.015),
+                        volume_cubic_m=120.0,
+                    ),
+                    SurveyAsset(
+                        asset_id="asset_c",
+                        classification="river",
+                        representative_point=(10.018, 20.018),
+                        volume_cubic_m=200.0,
+                    ),
+                ],
+                point_cloud_path="/tmp/beta.ply",
+                flight_time_minutes=75.0,
+                data_volume_gb=7.5,
+            ),
+        ]
+    )
+
+    metrics = manager.summarise_metrics()
+    assert metrics["total_surveys"] == 2
+    assert metrics["total_flight_hours"] == pytest.approx((45.0 + 75.0) / 60.0)
+    assert metrics["total_data_gb"] == pytest.approx(12.5)
+    assert metrics["average_assets_per_survey"] == pytest.approx(1.5)
+    assert metrics["latest_capture_name"] == "Beta"
+    assert metrics["latest_capture_date"] == date(2024, 6, 15).isoformat()

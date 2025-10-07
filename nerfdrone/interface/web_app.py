@@ -60,6 +60,14 @@ def create_application() -> FastAPI:
 
         providers = list(provider_registry.available_providers())
         LOGGER.debug("Rendering dashboard with providers: %s", providers)
+        metrics = survey_manager.summarise_metrics()
+        LOGGER.debug(
+            "Dashboard metrics -> surveys: %s acres: %.2f hours: %.2f data_gb: %.2f",
+            metrics["total_surveys"],
+            metrics["total_acres"],
+            metrics["total_flight_hours"],
+            metrics["total_data_gb"],
+        )
         return templates.TemplateResponse(
             "dashboard.html",
             {
@@ -68,6 +76,7 @@ def create_application() -> FastAPI:
                 "messages": dashboard_state["messages"],
                 "supported_labels": classifier.export_labels(),
                 "survey_captures": survey_manager.list_captures(),
+                "metrics": metrics,
                 "google_maps_key": settings.google_maps_api_key,
             },
         )
